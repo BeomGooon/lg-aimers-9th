@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>150만 CSV 산점도 렌더링</title>
+    <style>
+        body { margin: 0; padding: 20px; background-color: #1e1e1e; color: #ffffff; font-family: sans-serif; }
+        .controls { margin-bottom: 15px; display: flex; align-items: center; gap: 15px; }
+        button, input[type="file"] { padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+        canvas { background-color: #000000; border: 1px solid #444; }
+        #status { font-family: monospace; font-size: 14px; color: #4caf50; }
+        .highlight { color: #ffeb3b; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <!-- 1. 파일 이름 대신 직접 파일을 선택할 수 있게 합니다. -->
+        <input type="file" id="csvFileInput" accept=".csv">
+        <button id="startBtn" disabled>렌더링 시작</button>
+        <button id="clearBtn">초기화</button>
+    </div>
+    <div id="status" style="margin-bottom: 10px;">CSV 파일을 선택해주세요. (첫 줄은 헤더로 간주합니다)</div>
+
+    <canvas id="plotCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('plotCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const csvFileInput = document.getElementById('csvFileInput');
+        const startBtn = document.getElementById('startBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const statusText = document.getElementById('status');
+
+        const CHUNK_SIZE = 15000; 
+        
+        let xData = [];
+        let yData = [];
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        let currentIndex = 0;
+        let animationId = null;
+        let totalPoints = 0;
+
+        // ★ [여기를 수정하세요] CSV에서 사용할 열(Column)의 인덱스입니다. (0부터 시작)
+        const X_COL_INDEX = 0; // 예: 0번째 열을 X축으로
+        const Y_COL_INDEX = 1; // 예: 1번째 열을 Y축으로
+
+        // 1. CSV 파일 읽기 및 파싱
+        csvFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusText.innerHTML = `<span class="highlight">파일 읽는 중... (150만 행은 수 초 정도 걸릴 수 있습니다)</span>`;
+            startBtn.disabled = true;
+
+            const reader = new FileReader();
+            
+            // 대용량 텍스트를 메모리에 한 번에 올리고 파싱
+            reader.onload = function(event) {
+                const text = event.target.result;
+                const lines = text.split('\n');
+                
+                // 데이터 담을 배열 초기화 (성능을 위해 Float32Array 사용)
+                totalPoints = lines.length - 1; // 첫 줄(헤더) 제외
+                xData = new Float32Array(totalPoints);
+                yData = new Float32Array(totalPoints);
+                
+                let validCount = 0;
+
+                // i = 1부터 시작하여 첫 줄(헤더)을 건너뜁니다. 헤더가 없다면 0으로 바꾸세요.
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue; // 빈 줄 건너뛰기
+                    
+                    const cols = lines[i].split(',');
+
+                    // 설정한 인덱스에 맞게 데이터를 숫자로 변환
+                    const xVal = parseFloat(cols[X_COL_INDEX]);
+                    const yVal = parseFloat(cols[Y_COL_INDEX]);
+
+                    if (!isNaN(xVal) && !isNaN(yVal)) {
+                        xData[validCount] = xVal;
+                        yData[validCount] = yVal;
+
+                        // 화면에 딱 맞게 그리기 위해 최소/최댓값(스케일링용) 계산
+                        if (xVal < minX) minX = xVal;
+                        if (xVal > maxX) maxX = xVal;
+                        if (yVal < minY) minY = yVal;
+                        if (yVal > maxY) maxY = yVal;
+
+                        validCount++;
+                    }
+                }
+                
+                totalPoints = validCount; // 유효한 데이터 개수로 갱신
+                statusText.innerText = `데이터 ${totalPoints.toLocaleString()}개 로드 완료! 렌더링을 시작하세요.`;
+                startBtn.disabled = false;
+            };
+
+            reader.readAsText(file);
+        });
+
+        // 2. 스케일링(크기 변환) 함수
+        // 실제 데이터 값을 캔버스 픽셀(0~800, 0~600) 단위로 변환합니다.
+        function mapX(x) {
+            // (값 - 최솟값) / (최댓값 - 최솟값) * 캔버스너비
+            return ((x - minX) / (maxX - minX)) * canvas.width;
+        }
+
+        function mapY(y) {
+            // Y축은 캔버스에서 아래로 갈수록 커지므로 뒤집어줍니다(canvas.height - ).
+            return canvas.height - (((y - minY) / (maxY - minY)) * canvas.height);
+        }
+
+        // 3. 청크 단위 렌더링
+        function renderChunk() {
+            const endIndex = Math.min(currentIndex + CHUNK_SIZE, totalPoints);
+            
+            ctx.fillStyle = 'rgba(0, 255, 100, 0.3)'; // 점 색상
+
+            for (let i = currentIndex; i < endIndex; i++) {
+                // 스케일링된 좌표에 점 찍기
+                const px = mapX(xData[i]);
+                const py = mapY(yData[i]);
+                ctx.fillRect(px, py, 1.5, 1.5);
+            }
+
+            currentIndex = endIndex;
+
+            const progress = ((currentIndex / totalPoints) * 100).toFixed(1);
+            statusText.innerText = `렌더링 중... ${currentIndex.toLocaleString()} / ${totalPoints.toLocaleString()} (${progress}%)`;
+
+            if (currentIndex < totalPoints) {
+                animationId = requestAnimationFrame(renderChunk);
+            } else {
+                statusText.innerText = `렌더링 완료!`;
+            }
+        }
+
+        // 4. 버튼 컨트롤
+        startBtn.addEventListener('click', () => {
+            if (currentIndex > 0 || totalPoints === 0) return;
+            startBtn.disabled = true;
+            animationId = requestAnimationFrame(renderChunk);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if (animationId) cancelAnimationFrame(animationId);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            currentIndex = 0;
+            if (totalPoints > 0) startBtn.disabled = false;
+            statusText.innerText = "초기화됨. 다시 렌더링할 수 있습니다.";
+        });
+    </script>
+</body>
+</html>
