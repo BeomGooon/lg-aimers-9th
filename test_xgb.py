@@ -13,18 +13,25 @@ TARGET_COL = "control_success"
 def preprocess_data_func(df):
     df = df.copy()
     
+    # ---- 새로 추가된 변수 (투타 매치업 및 볼카운트 압박감) ----
+    df['same_hand'] = (df['pitcher_hand'] == df['batter_hand']).astype(int)
+    df['count_advantage'] = (df['strikes_before'] - df['balls_before'] + 3) / 5.0
+    
+    # ---- 수식 기반 전처리 (수치형) ----
     df['balls_before'] = df['balls_before'] / 3.0
     df['strikes_before'] = df['strikes_before'] / 2.0
     df['outs_before'] = df['outs_before'] / 2.0
     df['score_diff_pitcher_team'] = df['score_diff_pitcher_team'].abs().clip(upper=5) / 5.0
     df['asof_batter_n'] = np.log10(df['asof_batter_n'] + 1).clip(upper=3) / 3.0
-    df['asof_pitcher_success_rate'] = df['asof_pitcher_success_rate'].fillna(0.5)
     df['asof_pitcher_n'] = np.log10(df['asof_pitcher_n'] + 1).clip(upper=3) / 3.0
-    df['asof_pitcher_strike_rate'] = df['asof_pitcher_strike_rate'].fillna(0.6)
     df['home_win_expectancy'] = (df['home_win_expectancy'] - 50).abs() / 50.0
-    df['asof_pitcher_breaking_rate'] = df['asof_pitcher_breaking_rate'].fillna(0.3)
-    df['asof_pitcher_offspeed_rate'] = df['asof_pitcher_offspeed_rate'].fillna(0.15)
-    df['asof_batter_success_rate'] = df['asof_batter_success_rate'].fillna(0.5)
+    df['asof_pitcher_pitchmix_n'] = np.log10(df['asof_pitcher_pitchmix_n'] + 1).clip(upper=3) / 3.0
+    df['inning'] = (df['inning'] - 1).clip(upper=8) / 8.0
+    df['li'] = df['li'].clip(upper=2) / 2.0
+    
+    # ---- 파생 변수 (모멘텀/컨디션) 추가 ----
+    df['pitcher_momentum_1_vs_5'] = df['asof_pitcher_prev1_game_success_rate'] - df['asof_pitcher_prev5_game_success_rate']
+    df['pitcher_condition_vs_baseline'] = df['asof_pitcher_prev3_game_success_rate'] - df['asof_pitcher_success_rate']
     
     use_features = [
         'balls_before', 'strikes_before', 'outs_before', 
@@ -33,7 +40,21 @@ def preprocess_data_func(df):
         'asof_pitcher_strike_rate', 'home_win_expectancy', 
         'asof_pitcher_breaking_rate', 'asof_pitcher_offspeed_rate',
         'asof_batter_success_rate',
-        'top_bottom', 'game_type', 'base_state'
+        'asof_pitcher_prev1_game_success_rate',
+        'asof_pitcher_prev3_game_success_rate',
+        'asof_pitcher_prev5_game_success_rate',
+        'pitcher_momentum_1_vs_5',
+        'pitcher_condition_vs_baseline',
+        'asof_pitcher_pitchmix_n',
+        'inning',
+        'li',
+        'same_hand',
+        'count_advantage',
+        'asof_pitcher_middle_rate',
+        'asof_pitcher_reverse_rate',
+        'asof_pitcher_ball_rate',
+        'asof_pitcher_fastball_rate',
+        'game_type'
     ]
     return df[use_features]
 
@@ -89,7 +110,7 @@ def main():
     SAMPLE_SUB_PATH = os.path.join(TEST_DIR, "sample_submission.csv")
     
     MODEL_PATH = os.path.join(MODEL_DIR, "xgb_ensemble.pkl")
-    OUT_PATH = os.path.join(OUT_DIR, "submission_xgb_ensemble.csv")
+    OUT_PATH = os.path.join(OUT_DIR, "submission.csv")
 
     print("Load 5-Fold Ensemble models...")
     models = joblib.load(MODEL_PATH)
@@ -119,7 +140,7 @@ def main():
     print("Build submission...")
     sub = merge_predictions(sub, ids, ensemble_preds)
     save_submission(OUT_PATH, sub)
-    print(f"✅ Saved: {OUT_PATH} (rows={len(sub)})")
+    print(f"[SUCCESS] Saved: {OUT_PATH} (rows={len(sub)})")
 
 if __name__ == "__main__":
     main()

@@ -84,7 +84,7 @@ def main():
     TEST_PATH = os.path.join(TEST_DIR, "test.csv")
     SAMPLE_SUB_PATH = os.path.join(TEST_DIR, "sample_submission.csv")
     MODEL_PATH = os.path.join(MODEL_DIR, "rf.pkl")
-    OUT_PATH = os.path.join(OUT_DIR, "submission.csv")
+    OUT_PATH = os.path.join(OUT_DIR, "submission_baseline.csv")
 
     # ---- 모델 로드 ----
     print("Load model...")
