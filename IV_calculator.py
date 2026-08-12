@@ -45,7 +45,7 @@ df = pd.read_csv(file_path)
 
 # 2. 사용할 컬럼명 지정 (실제 csv 파일의 컬럼명에 맞게 수정)
 target_col = 'control_success'       # 예: 제구 성공 여부 컬럼 (0 또는 1)
-feature_col = 'away_win_expectancy'  # 예: 분석하고자 하는 속성 컬럼 (수직 릴리스 포인트 등)
+feature_col = 'asof_batter_middle_rate'  # 예: 분석하고자 하는 속성 컬럼 (수직 릴리스 포인트 등)
 
 # 3. 데이터 결측치 처리 (선택 사항)
 # 분석할 속성이나 타겟 변수에 결측치(NaN)가 있다면 제거해 줍니다.
