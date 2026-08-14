@@ -45,7 +45,7 @@ df = pd.read_csv(file_path)
 
 # 2. 사용할 컬럼명 지정 (실제 csv 파일의 컬럼명에 맞게 수정)
 target_col = 'control_success'       # 예: 제구 성공 여부 컬럼 (0 또는 1)
-feature_col = 'runner_on_3b'  # 예: 분석하고자 하는 속성 컬럼 (수직 릴리스 포인트 등)
+feature_col = 'season'  # 예: 분석하고자 하는 속성 컬럼 (수직 릴리스 포인트 등)
 
 # 3. 데이터 결측치 처리 (선택 사항)
 # 분석할 속성이나 타겟 변수에 결측치(NaN)가 있다면 제거해 줍니다.
@@ -55,8 +55,8 @@ df = df.dropna(subset=[target_col, feature_col])
 # 분석할 속성이 소수점을 가지는 연속형 데이터라면 10개 등의 구간으로 나누어야 합니다.
 # (만약 '구종'처럼 이미 나누어져 있는 범주형 데이터라면 이 과정은 생략하고 feature_name에 원래 컬럼명을 넣으시면 됩니다.)
 binned_col = f'{feature_col}_binned'
-# df[binned_col] = pd.qcut(df[feature_col], q=10, duplicates='drop')                    # continuous한 경우
-df[binned_col] = pd.cut(df[feature_col], bins=[-1, 0, 1], labels=['0', '1'])    # discrete한 경우
+df[binned_col] = pd.qcut(df[feature_col], q=10, duplicates='drop')                    # continuous한 경우
+# df[binned_col] = pd.cut(df[feature_col], bins=[-1, 0, 1, 2, 3, 4, 5, 6], labels=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])    # discrete한 경우
 
 # 5. IV 계산 함수 실행
 iv_table, total_iv = calculate_iv(df, feature_name=binned_col, target_name=target_col)
